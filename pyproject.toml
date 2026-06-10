@@ -1,0 +1,27 @@
+[project]
+name = "localcsp"
+version = "0.1.0"
+description = "Offline mock of the Infoblox CSP (Universal DDI) API — a Moto-equivalent for NIOS-X as a Service"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+localcsp = "localcsp.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/localcsp"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
