@@ -23,16 +23,34 @@ export CSP_API_KEY=anything-nonempty
 uv run --extra dev pytest            # the deploy→read-back loop, auth, validation
 ```
 
-## What it models
+## Two modes
 
-The as-a-service object graph described in the public documentation (Creating As-a-Service;
-Configuring an IPSec Tunnel): **Service → Capability → Service Deployment → Service Location**.
-The point of interest is the consolidated create call, which mints the two **Cloud Service
-IPs** (the public IKE peer endpoints, one per AZ) — the values you can't know until the POP
-exists. See [`docs/api-model.md`](docs/api-model.md) for the object shapes the mock returns.
+**1. Stateful as-a-service loop (Python/FastAPI).** Models the deploy graph — **Service →
+Capability → Service Deployment → Service Location** — and the consolidated create call that
+mints the two **Cloud Service IPs** (public IKE peer endpoints, one per AZ), the values you
+can't know until the POP exists. State is in-memory and resets per process. This is the path
+the `uv run localcsp` / `pytest` commands above exercise. See
+[`docs/api-model.md`](docs/api-model.md) for the object shapes it returns.
 
-Auth mirrors the documented scheme: `Authorization: Token <api-key>` (any non-empty token
-passes). State is in-memory and resets per process, so every test session is clean.
+**2. Spec-driven full surface (Prism).** The entire BloxOne / Universal DDI API — DNS views,
+auth zones, records, servers (`dnsconfig`), IPAM, DNS data, Threat Defense, anycast, keys, and
+the rest — is mocked straight from the vendored OpenAPI specs in [`specs/`](specs/), so you can
+hit *any* documented endpoint with schema-valid request/response behavior:
+
+```bash
+./scripts/mock-all.sh                 # one Prism mock per service, ports 4010-4022
+# then, e.g. (Prism mounts each spec's paths at the root; any non-empty token satisfies auth):
+curl -H "Authorization: Bearer x" http://127.0.0.1:4013/dns/view     # dnsconfig: DNS views
+curl -H "Authorization: Bearer x" http://127.0.0.1:4018/ipam/subnet  # ipam: subnets
+```
+
+The specs are vendored unmodified from the public, Apache-2.0
+[`infobloxopen/bloxone-go-client`](https://github.com/infobloxopen/bloxone-go-client) — the
+same source the official Go client and `terraform-provider-bloxone` are generated from. See
+[`specs/NOTICE.md`](specs/NOTICE.md) for the service→port→base-path map and attribution.
+
+Auth (mode 1) mirrors the documented scheme: `Authorization: Token <api-key>` (any non-empty
+token passes).
 
 ## Scope & non-goals
 
@@ -40,15 +58,14 @@ passes). State is in-memory and resets per process, so every test session is cle
   minutes). Cloud Service IPs are minted from TEST-NET-2 (`198.51.100.0/24`) so they're
   visibly fake but public-shaped.
 - **Not a security boundary.** Tokens aren't verified beyond non-emptiness.
-- **as-a-service surface only.** DDI data-plane objects (zones/records/views) are out of
-  scope here — those are covered by the `bloxone` Terraform provider against a real tenant.
-- **Illustrative.** Shapes and field names follow the public docs and ordinary API use; this
-  is a local test double, not a spec. All addresses in tests and docs are example/documentation
+- **Illustrative.** The FastAPI mode is a hand-written test double, not a spec; the Prism mode
+  serves the upstream specs as-is. All addresses in tests and docs are example/documentation
   ranges.
 
 ## Roadmap
 
-- [ ] Align routes to an OpenAPI spec drop + optional Prism mode for pure schema validation.
-- [ ] Model Access Location / Connection objects (tunnel IDs, credential refs) more fully if
-  automation needs them.
+- [x] Full-surface schema mock via vendored OpenAPI specs + Prism.
+- [ ] Make the stateful FastAPI mode stitch into the spec mocks (stateful DDI objects, not just
+  schema-valid stubs).
 - [ ] Status state machine (`not_ready → ready → connected`) on a timer for realism.
+- [ ] A `refresh-specs` script to re-pull the vendored specs from upstream.

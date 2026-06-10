@@ -1,0 +1,11 @@
+{
+  "name": "localcsp-specs",
+  "private": true,
+  "description": "Prism spec-mock mode for localcsp — serves the vendored BloxOne/Universal DDI OpenAPI specs",
+  "scripts": {
+    "mock": "./scripts/mock-all.sh"
+  },
+  "devDependencies": {
+    "@stoplight/prism-cli": "^5.8.0"
+  }
+}
